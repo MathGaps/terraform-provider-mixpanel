@@ -13,6 +13,8 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    # GPG_PRIVATE_KEY is this environment's secret; it admits only v* tags.
+    environment: release
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
