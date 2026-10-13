@@ -20,7 +20,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/mixpanel/mixpanel",
+		Address: "registry.opentofu.org/mathgaps/mixpanel",
 		Debug:   debug,
 	}
 
