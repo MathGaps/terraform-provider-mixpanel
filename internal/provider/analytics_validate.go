@@ -138,10 +138,15 @@ func validateCohortGroups(groups any) []string {
 //   - boolean property filters compare against the STRINGS "true"/"false",
 //     never JSON booleans (webapp cohort test fixtures; a JSON boolean
 //     filterValue on a boolean property corrupts the saved definition).
-//   - a property filter must name its property via propertyName
-//     (bookmark_parser/funnels/validation.py: Required("propertyName")); a
-//     filter carrying `value` instead of `propertyName` saves but crashes the
-//     query builder.
+//   - a property filter may name its property via EITHER propertyName or value.
+//     bookmark_parser/funnels/validation.py has Required("propertyName"), but
+//     the app API does not: every filter it returns for project 2519332 — 318 of
+//     them, across reports this provider imports without complaint — names its
+//     property in `value` and none carries `propertyName`. A report built that
+//     way opens in the webapp query builder and renders its filters, tested
+//     2026-10-13, so the shape is not the crash the rule assumed. Rejecting it
+//     made 39 of 153 saved reports unimportable while the rest went through,
+//     which is the real tell: the rule walked funnel filter paths alone.
 func validateFilterEntries(basePath string, filters []any) []string {
 	var problems []string
 	for j, f := range filters {
@@ -163,14 +168,6 @@ func validateFilterEntries(basePath string, filters []any) []string {
 		if pt, _ := obj["propertyType"].(string); pt == "boolean" {
 			if hasJSONBool(obj["filterValue"]) {
 				problems = append(problems, p+`: boolean property filters take the strings "true"/"false", not JSON booleans`)
-			}
-		}
-		if _, hasVal := obj["value"]; hasVal {
-			_, hasName := obj["propertyName"]
-			_, hasCustom := obj["customProperty"]
-			_, hasBehavior := obj["behavior"]
-			if !hasName && !hasCustom && !hasBehavior {
-				problems = append(problems, p+": property filters name their property via \"propertyName\", not \"value\"")
 			}
 		}
 	}

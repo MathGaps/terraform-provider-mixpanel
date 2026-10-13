@@ -91,8 +91,9 @@ func TestValidateFilterEntries(t *testing.T) {
 		{"boolean op with string true OK", `[{"propertyName":"paid","propertyType":"boolean","filterOperator":"equals","filterValue":"true"}]`, 0, nil},
 		{"boolean op with JSON bool (strictness)", `[{"propertyName":"paid","propertyType":"boolean","filterOperator":"equals","filterValue":true}]`, 1, []string{`strings "true"/"false"`}},
 		{"boolean op with JSON bool in list (strictness)", `[{"propertyName":"paid","propertyType":"boolean","filterOperator":"equals","filterValue":[false]}]`, 1, []string{`strings "true"/"false"`}},
-		{"value instead of propertyName (confirmed crash)", `[{"filterOperator":"equals","value":"foo","filterValue":"bar"}]`, 1, []string{`"propertyName", not "value"`}},
+		{"value instead of propertyName OK (the app API returns this shape)", `[{"filterOperator":"equals","value":"foo","filterValue":"bar"}]`, 0, nil},
 		{"value alongside propertyName allowed (GroupClause carries both)", `[{"filterOperator":"equals","propertyName":"foo","value":"foo","filterValue":"bar"}]`, 0, nil},
+		{"value naming a property inside a funnel step filter OK", `[{"resourceType":"people","filterType":"string","value":"type","filterOperator":"equals","filterValue":["teacher"]}]`, 0, nil},
 		{"behavioral filter without filterOperator skipped", `[{"customProperty":{"behavior":{}}}]`, 0, nil},
 		{"non-object entries skipped", `[42, "x"]`, 0, nil},
 	}
