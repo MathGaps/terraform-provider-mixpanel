@@ -20,35 +20,47 @@ resource "mixpanel_dashboard" "board" {
 
 ## Board layout
 
-The synthetic `layout` attribute manages the board's row/cell layout in the
-dashboards **PATCH write format** (the only layout shape the API persists —
-live-verified):
+The synthetic `layout` attribute arranges the board's cards into rows. Each
+row lists its cards in order, by cell id, with a width out of 12:
 
 ```terraform
 resource "mixpanel_dashboard" "board" {
   title = "KPIs"
   layout = jsonencode({
-    rows = [{
-      id     = "CVs5n7mF" # real row id, or temp_id = "..." for a new row
-      height = 300
-      cells  = [{ id = "RNTLz4Z4", width = 6 }]
-    }]
-    rows_order = ["CVs5n7mF"]
+    rows = [
+      { height = 0, cells = [{ id = "RNTLz4Z4", width = 6 }, { id = "Q2mXc0aa", width = 6 }] },
+      { height = 0, cells = [{ id = "Hk3pLm9T", width = 12 }] },
+    ]
   })
 }
 ```
 
+The dashboards `PATCH` accepts a layout only when it accounts for the board as
+it stands: every row the board holds listed (a row to remove listed with no
+cells), every card placed exactly once, and no row id the board does not hold.
+Anything else is refused with `403 INVALID_LAYOUT`, which carries no reason
+(live-verified 2026-11-04). Row ids change whenever someone edits the board in
+the webapp, so the provider does not ask the configuration to know them:
+
+- **Row ids are optional.** On update the provider reads the live board and
+  rebuilds the `PATCH`: a configured row keeps the id it names when the board
+  still holds that row, otherwise it takes the live row holding its first card,
+  otherwise it is created; live rows left with no cards are listed empty so the
+  server drops them. `rows_order` is derived from the order of `rows`.
+- **Cards may move between rows**, and rows may be merged, split or reordered.
+- **Cards the layout does not place** stay on the board, in their own rows after
+  the configured ones, and are not drift. A card created on the board by a new
+  `mixpanel_bookmark` lands there until the layout places it.
+- **A card that is not on the board** is an error naming the card and the
+  board's cards, before anything is sent.
+- **Drift is the arrangement, not the ids.** A refresh keeps the configured
+  value when the board shows the same rows, order and widths under different
+  row ids; a different arrangement (a webapp edit) is drift, and the next
+  apply restores the configured one.
 - On create, the layout is applied with a follow-up `PATCH` after the `POST`.
-- On read, the API's GET shape (`rows` as a dict keyed by row id, `order`,
-  `version`, cells enriched with `content_id`/`content_type`) is transformed
-  back into the write format, so refresh and drift detection work; if the GET
-  ever returns an unexpected shape, the prior state is kept for `layout`
-  instead of failing the refresh.
-- Use the **real row/cell ids** (from a prior refresh of this attribute, or a
-  `mixpanel_dashboard` data source) when adjusting an existing layout, and
-  always include `height`/`width`: rows created with `temp_id` are rewritten
-  to server-assigned ids and omitted fields are filled server-side, both of
-  which surface as drift on the next refresh.
+- Cell ids come from a refresh of this attribute or a `mixpanel_dashboard` data
+  source; a cell's `content_id` (in the dashboards GET) is its report's
+  bookmark id.
 - Report cells are created automatically when a `mixpanel_bookmark` board
   report is attached to the board (see the [bookmark resource docs](bookmark.md)); `layout`
   is for arranging/resizing them. Cells cannot reference content that does
@@ -108,7 +120,7 @@ terraform import mixpanel_dashboard.board 1234567:890
 - `is_draft` (Boolean)
 - `is_private` (Boolean)
 - `is_restricted` (Boolean)
-- `layout` (String) Board layout in the dashboards PATCH write format: `jsonencode({rows = [{id|temp_id, height, cells = [{id|temp_id, width}]}], rows_order = [...]})`. See [Board layout](#board-layout).
+- `layout` (String) Board layout: `jsonencode({rows = [{height, cells = [{id, width}]}]})`, rows in order, cards by cell id. Row ids are optional; the provider reconciles them with the live board. See [Board layout](#board-layout).
 - `project_id` (Number)
 - `rows` (Attributes List) (see [below for nested schema](#nestedatt--rows))
 - `share_with_project` (Boolean) Whether to share this entity with the whole project after creation. Entities created by a service account are otherwise visible only to that service account. Defaults to `true`. See the [Entity sharing guide](../guides/sharing.md).
