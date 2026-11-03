@@ -25,8 +25,9 @@
 // layout is applied with a follow-up PATCH (the POST accepts a layout key but
 // only the PATCH path is verified to persist it). Apply echoes are dropped
 // (the plan is authoritative: the server rewrites temp_id rows/cells into
-// real ids, which would trip Terraform's consistency check). Re-apply all of
-// this if regenerating.
+// real ids, which would trip Terraform's consistency check). Update rebuilds
+// the layout PATCH against the live board and Read ignores row-id churn
+// (dashboard_layout.go). Re-apply all of this if regenerating.
 
 package provider
 
@@ -82,10 +83,9 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 	s.Attributes["layout"] = schema.StringAttribute{
 		Optional: true,
 		Computed: true,
-		MarkdownDescription: "Board layout in the dashboards PATCH write format: " +
-			"`jsonencode({rows = [{id|temp_id, height, cells = [{id|temp_id, width}]}], rows_order = [...]})`. " +
-			"Use the real row/cell ids (from a prior read) to adjust an existing layout; `temp_id` entries are " +
-			"rewritten to server-assigned ids and will show as drift on the next refresh.",
+		MarkdownDescription: "Board layout: `jsonencode({rows = [{height, cells = [{id, width}]}]})`, " +
+			"rows in order, cards by cell id. Row ids are optional: the provider reconciles them with the " +
+			"live board on update, and a refresh that finds the same arrangement under other row ids is not drift.",
 	}
 	normalizedJSON(s.Attributes, "layout")
 	s.Attributes[shareAttrName] = shareWithProjectAttribute()
@@ -219,6 +219,26 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		resp.Diagnostics.AddError("Encoding dashboard request", err.Error())
 		return
 	}
+	// The layout PATCH is refused unless it accounts for the board as it
+	// stands (dashboard_layout.go): rebuild it against the live board.
+	if desired, ok := plannedLayout(body["layout"]); ok {
+		liveBody, gerr := r.client.Do(ctx, "GET", r.instancePath(projectID, id), nil)
+		if gerr != nil {
+			resp.Diagnostics.AddError("Reading dashboard layout", gerr.Error())
+			return
+		}
+		liveWire, uerr := unwrapDashboard(liveBody)
+		if uerr != nil {
+			resp.Diagnostics.AddError("Decoding dashboard layout", uerr.Error())
+			return
+		}
+		reconciled, rerr := reconcileDashboardLayout(desired, liveWire["layout"])
+		if rerr != nil {
+			resp.Diagnostics.AddError("Arranging dashboard layout", rerr.Error())
+			return
+		}
+		body["layout"] = reconciled
+	}
 	// The dashboards PATCH (layout writes included) can return transient 409
 	// conflicts; use the shared bounded-retry helper.
 	respBody, err := dashboardPatchWithConflictRetry(ctx, r.client, r.instancePath(projectID, id), body)
@@ -275,6 +295,22 @@ func (r *DashboardResource) ImportState(ctx context.Context, req resource.Import
 // concurrent edits touch the same board, and the shared client only retries
 // 5xx/429. 3 attempts, linear backoff (1s, 2s). Shared with the bookmark
 // resource's board-report content lifecycle (bookmark_resource.go).
+// plannedLayout returns the planned layout as a decoded object, whether the
+// request bridge carried it decoded or as its JSON string.
+func plannedLayout(v any) (map[string]any, bool) {
+	switch l := v.(type) {
+	case map[string]any:
+		return l, len(l) > 0
+	case string:
+		var m map[string]any
+		if l == "" || json.Unmarshal([]byte(l), &m) != nil {
+			return nil, false
+		}
+		return m, len(m) > 0
+	}
+	return nil, false
+}
+
 func dashboardPatchWithConflictRetry(ctx context.Context, c *client.Client, path string, body map[string]any) ([]byte, error) {
 	const attempts = 3
 	var lastErr error
@@ -412,7 +448,12 @@ func (r *DashboardResource) writeDashboardState(ctx context.Context, state *tfsd
 	//     refresh and drift detection work; an unexpected shape keeps the
 	//     prior state for `layout` instead of failing the refresh.
 	if lv, present := wire["layout"]; present {
+		prior, _ := stringAttrFromRaw(base, "layout")
 		if mode == client.MergeApply {
+			delete(wire, "layout")
+		} else if prior != "" && layoutMatchesLive(prior, lv) {
+			// Same arrangement under the board's current row ids: keep the
+			// configured value (base wins) so row-id churn is not drift.
 			delete(wire, "layout")
 		} else if wf, ok := dashboardLayoutWriteFormat(lv); ok {
 			wire["layout"] = wf
