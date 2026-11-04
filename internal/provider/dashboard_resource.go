@@ -87,7 +87,16 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 			"rows in order, cards by cell id. Row ids are optional: the provider reconciles them with the " +
 			"live board on update, and a refresh that finds the same arrangement under other row ids is not drift.",
 	}
-	normalizedJSON(s.Attributes, "layout")
+	// Board filters as Mixpanel stores them (HAND-EDITED EXCEPTION 3 in
+	// dashboard_spec.go): a list of its filter objects, passed through as JSON.
+	s.Attributes["filters"] = schema.StringAttribute{
+		Optional: true,
+		Computed: true,
+		MarkdownDescription: "Board filters: `jsonencode([{value, resourceType, dataset, filterType, defaultType, " +
+			"filterOperator, filterValue}])`, Mixpanel's filter objects as the board stores them. A filter with an " +
+			"empty `filterValue` names the property and leaves the value to the viewer.",
+	}
+	normalizedJSON(s.Attributes, "layout", "filters")
 	s.Attributes[shareAttrName] = shareWithProjectAttribute()
 	stabilizeComputed(s.Attributes)
 	resp.Schema = s

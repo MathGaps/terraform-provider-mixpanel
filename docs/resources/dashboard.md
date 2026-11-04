@@ -18,6 +18,22 @@ resource "mixpanel_dashboard" "board" {
 }
 ```
 
+## Board filters
+
+`filters` is a JSON string of Mixpanel's own filter objects, passed through as
+the board stores them. Each names a property (`value`) and where it lives
+(`resourceType`: `events` or `people`). An empty `filterValue` leaves the choice
+to whoever views the board:
+
+```hcl
+filters = jsonencode([
+  { value = "platform", resourceType = "events", dataset = "$mixpanel",
+    filterType = "string", defaultType = "string", filterOperator = "equals",
+    filterValue = [], propertyObjectKey = null, dataGroupId = null,
+    profileType = null, search = "" },
+])
+```
+
 ## Board layout
 
 The synthetic `layout` attribute arranges the board's cards into rows. Each
@@ -114,7 +130,7 @@ terraform import mixpanel_dashboard.board 1234567:890
 - `dashboard_id` (Number)
 - `description` (String)
 - `duplicate` (Number)
-- `filters` (Attributes List) (see [below for nested schema](#nestedatt--filters))
+- `filters` (String) Board filters: `jsonencode([{value, resourceType, dataset, filterType, defaultType, filterOperator, filterValue}])`, Mixpanel's filter objects as the board stores them. A filter with an empty `filterValue` names the property and leaves the value to the viewer. See [Board filters](#board-filters).
 - `generation_type` (String)
 - `global_access_type` (String)
 - `is_draft` (Boolean)
@@ -166,24 +182,6 @@ Optional:
 - `type` (String)
 
 
-
-<a id="nestedatt--filters"></a>
-### Nested Schema for `filters`
-
-Optional:
-
-- `custom_property` (String)
-- `custom_property_id` (String)
-- `data_group_id` (String)
-- `filter_operator` (String)
-- `filter_value` (String)
-- `join_property_type` (String)
-- `list_inclusion` (String)
-- `list_quantifier` (String)
-- `property_default_type` (String)
-- `property_object_key` (String)
-- `property_type` (String)
-- `resource_type` (String)
 
 
 <a id="nestedatt--rows"></a>
