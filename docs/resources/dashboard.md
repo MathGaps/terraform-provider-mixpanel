@@ -21,18 +21,22 @@ resource "mixpanel_dashboard" "board" {
 ## Board filters
 
 `filters` is a JSON string of Mixpanel's own filter objects, passed through as
-the board stores them. Each names a property (`value`) and where it lives
-(`resourceType`: `events` or `people`). An empty `filterValue` leaves the choice
-to whoever views the board:
+the board stores them (the shape the webapp writes, live-verified 2026-11-04).
+Each names a property (`propertyName`) and where it lives (`resourceType`:
+`event` or `user`). `defaultEmpty = true` with an empty `filterValue` leaves the
+value to whoever views the board, shown as "is Any" until one is picked:
 
 ```hcl
 filters = jsonencode([
-  { value = "platform", resourceType = "events", dataset = "$mixpanel",
-    filterType = "string", defaultType = "string", filterOperator = "equals",
-    filterValue = [], propertyObjectKey = null, dataGroupId = null,
-    profileType = null, search = "" },
+  { resourceType = "user", propertyName = "region", propertyObjectKey = null,
+    propertyDefaultType = "string", propertyType = "string",
+    filterOperator = "equals", filterValue = [], limitValues = false,
+    defaultEmpty = true },
 ])
 ```
+
+A filter in another shape is stored as sent, and the webapp fails to render
+the board ("Something went wrong").
 
 ## Board layout
 
@@ -130,7 +134,7 @@ terraform import mixpanel_dashboard.board 1234567:890
 - `dashboard_id` (Number)
 - `description` (String)
 - `duplicate` (Number)
-- `filters` (String) Board filters: `jsonencode([{value, resourceType, dataset, filterType, defaultType, filterOperator, filterValue}])`, Mixpanel's filter objects as the board stores them. A filter with an empty `filterValue` names the property and leaves the value to the viewer. See [Board filters](#board-filters).
+- `filters` (String) Board filters: `jsonencode([{resourceType, propertyName, propertyType, filterOperator, filterValue, defaultEmpty, ...}])`, Mixpanel's filter objects as the board stores them. See [Board filters](#board-filters).
 - `generation_type` (String)
 - `global_access_type` (String)
 - `is_draft` (Boolean)

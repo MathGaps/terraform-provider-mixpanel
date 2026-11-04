@@ -92,9 +92,9 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 	s.Attributes["filters"] = schema.StringAttribute{
 		Optional: true,
 		Computed: true,
-		MarkdownDescription: "Board filters: `jsonencode([{value, resourceType, dataset, filterType, defaultType, " +
-			"filterOperator, filterValue}])`, Mixpanel's filter objects as the board stores them. A filter with an " +
-			"empty `filterValue` names the property and leaves the value to the viewer.",
+		MarkdownDescription: "Board filters: `jsonencode([{resourceType, propertyName, propertyType, " +
+			"filterOperator, filterValue, defaultEmpty, ...}])`, Mixpanel's filter objects as the board stores them. " +
+			"`defaultEmpty = true` with an empty `filterValue` leaves the value to the viewer.",
 	}
 	normalizedJSON(s.Attributes, "layout", "filters")
 	s.Attributes[shareAttrName] = shareWithProjectAttribute()
