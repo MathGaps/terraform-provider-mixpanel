@@ -51,9 +51,10 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*DashboardResource)(nil)
-	_ resource.ResourceWithConfigure   = (*DashboardResource)(nil)
-	_ resource.ResourceWithImportState = (*DashboardResource)(nil)
+	_ resource.Resource                 = (*DashboardResource)(nil)
+	_ resource.ResourceWithConfigure    = (*DashboardResource)(nil)
+	_ resource.ResourceWithImportState  = (*DashboardResource)(nil)
+	_ resource.ResourceWithUpgradeState = (*DashboardResource)(nil)
 )
 
 // keep the generated schema package and schema builder imported.
@@ -99,6 +100,8 @@ func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaReque
 	normalizedJSON(s.Attributes, "layout", "filters")
 	s.Attributes[shareAttrName] = shareWithProjectAttribute()
 	stabilizeComputed(s.Attributes)
+	// Version 1: `filters` became a jsonencode string (v0.1.2); see UpgradeState.
+	s.Version = 1
 	resp.Schema = s
 }
 
