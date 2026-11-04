@@ -18,6 +18,26 @@ resource "mixpanel_dashboard" "board" {
 }
 ```
 
+## Board filters
+
+`filters` is a JSON string of Mixpanel's own filter objects, passed through as
+the board stores them (the shape the webapp writes, live-verified 2026-11-04).
+Each names a property (`propertyName`) and where it lives (`resourceType`:
+`event` or `user`). `defaultEmpty = true` with an empty `filterValue` leaves the
+value to whoever views the board, shown as "is Any" until one is picked:
+
+```hcl
+filters = jsonencode([
+  { resourceType = "user", propertyName = "region", propertyObjectKey = null,
+    propertyDefaultType = "string", propertyType = "string",
+    filterOperator = "equals", filterValue = [], limitValues = false,
+    defaultEmpty = true },
+])
+```
+
+A filter in another shape is stored as sent, and the webapp fails to render
+the board ("Something went wrong").
+
 ## Board layout
 
 The synthetic `layout` attribute arranges the board's cards into rows. Each
@@ -114,7 +134,7 @@ terraform import mixpanel_dashboard.board 1234567:890
 - `dashboard_id` (Number)
 - `description` (String)
 - `duplicate` (Number)
-- `filters` (Attributes List) (see [below for nested schema](#nestedatt--filters))
+- `filters` (String) Board filters: `jsonencode([{resourceType, propertyName, propertyType, filterOperator, filterValue, defaultEmpty, ...}])`, Mixpanel's filter objects as the board stores them. See [Board filters](#board-filters).
 - `generation_type` (String)
 - `global_access_type` (String)
 - `is_draft` (Boolean)
@@ -166,24 +186,6 @@ Optional:
 - `type` (String)
 
 
-
-<a id="nestedatt--filters"></a>
-### Nested Schema for `filters`
-
-Optional:
-
-- `custom_property` (String)
-- `custom_property_id` (String)
-- `data_group_id` (String)
-- `filter_operator` (String)
-- `filter_value` (String)
-- `join_property_type` (String)
-- `list_inclusion` (String)
-- `list_quantifier` (String)
-- `property_default_type` (String)
-- `property_object_key` (String)
-- `property_type` (String)
-- `resource_type` (String)
 
 
 <a id="nestedatt--rows"></a>

@@ -39,7 +39,9 @@ func (d *DashboardDataSource) Metadata(ctx context.Context, req datasource.Metad
 
 func (d *DashboardDataSource) Schema(ctx context.Context, req datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	s := dsc.DashboardDataSourceSchema(ctx)
-
+	// Board filters as JSON, as the resource has them (dashboard_spec.go,
+	// HAND-EDITED EXCEPTION 3).
+	s.Attributes["filters"] = dschema.StringAttribute{Computed: true}
 	resp.Schema = s
 }
 
