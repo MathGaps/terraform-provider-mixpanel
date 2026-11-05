@@ -38,6 +38,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -323,7 +324,23 @@ func plannedLayout(v any) (map[string]any, bool) {
 	return nil, false
 }
 
+// boardWriteLocks holds one lock per board path. A board's layout is one record
+// Mixpanel rewrites on every content create or delete, so two writes to the
+// same board in flight at once (Terraform's parallel walk: two cards deleted
+// together) race, and Mixpanel refuses the loser with 403 INVALID_LAYOUT
+// (live-verified 2026-11-05). Writes to one board go one at a time; writes to
+// different boards still run in parallel.
+var boardWriteLocks sync.Map // path -> *sync.Mutex
+
+func lockBoard(path string) func() {
+	m, _ := boardWriteLocks.LoadOrStore(path, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
+}
+
 func dashboardPatchWithConflictRetry(ctx context.Context, c *client.Client, path string, body map[string]any) ([]byte, error) {
+	defer lockBoard(path)()
 	const attempts = 3
 	var lastErr error
 	for i := 0; i < attempts; i++ {
