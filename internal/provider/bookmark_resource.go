@@ -104,6 +104,15 @@ func (r *BookmarkResource) Schema(ctx context.Context, req resource.SchemaReques
 	// API is the only consistent move.
 	requireReplace(s.Attributes, "dashboard_id")
 	stabilizeComputed(s.Attributes)
+	// The server writes metadata itself from the bookmark's name, description
+	// and params, so an update with metadata left unset must plan it as known
+	// after apply, not keep the old value (live: iac#452, 2026-11-05). A plan
+	// with no change still keeps it: the framework marks unset computed
+	// attributes unknown only when the resource changes.
+	if m, ok := s.Attributes["metadata"].(schema.StringAttribute); ok {
+		m.PlanModifiers = nil
+		s.Attributes["metadata"] = m
+	}
 	resp.Schema = s
 }
 

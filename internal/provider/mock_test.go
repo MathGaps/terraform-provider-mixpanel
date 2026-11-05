@@ -99,6 +99,10 @@ type mockOpts struct {
 	createNameKey string
 	idListKey     string
 	matchAttr     string
+	// derive, when set, rewrites a stored object after every create and update,
+	// the way the server computes some fields from others (a bookmark's
+	// metadata carries its name and description).
+	derive func(obj map[string]any)
 }
 
 // capturedRequest records one body-bearing request the mock served, so tests
@@ -288,6 +292,9 @@ func (m *mockServer) handle(w http.ResponseWriter, r *http.Request) {
 			obj[k] = v
 		}
 		obj[m.opts.idField] = m.idValue(id)
+		if m.opts.derive != nil {
+			m.opts.derive(obj)
+		}
 		m.store[id] = obj
 		m.respond(w, id, obj)
 	case http.MethodDelete:
@@ -362,6 +369,9 @@ func (m *mockServer) handleDashboardContent(w http.ResponseWriter, dashID string
 		}
 		stored[m.opts.idField] = m.idValue(idStr)
 		stored["dashboard_id"] = m.idValue(dashID)
+		if m.opts.derive != nil {
+			m.opts.derive(stored)
+		}
 		m.store[idStr] = stored
 		// new_content echoes the bookmark with params rewritten into an object.
 		echo := map[string]any{}

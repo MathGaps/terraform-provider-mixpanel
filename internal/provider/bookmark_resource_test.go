@@ -12,6 +12,7 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/plancheck"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
 )
 
 func TestAccBookmark_lifecycle(t *testing.T) {
@@ -166,6 +168,31 @@ func TestAccBookmark_boardReportLifecycleMock(t *testing.T) {
 						plancheck.ExpectResourceAction("mixpanel_bookmark.test", plancheck.ResourceActionDestroyBeforeCreate),
 					},
 				},
+			},
+		},
+	})
+}
+
+// TestAccBookmark_serverMetadataFollowsAnUpdate: Mixpanel writes a bookmark's
+// metadata itself, from its name and description, so a config that leaves
+// metadata unset must not promise the old value across an update (iac#452's
+// apply failed with "inconsistent result after apply" on exactly that).
+func TestAccBookmark_serverMetadataFollowsAnUpdate(t *testing.T) {
+	srv := newMockServer(t, mockOpts{enveloped: true, idField: "id", derive: func(obj map[string]any) {
+		meta, _ := json.Marshal(map[string]any{"name": obj["name"], "chart_type": "line"})
+		obj["metadata"] = string(meta)
+	}})
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testProtoV6,
+		Steps: []resource.TestStep{
+			{Config: bookmarkBoardConfig(srv.URL, "report-a", "board_a")},
+			{
+				Config: bookmarkBoardConfig(srv.URL, "report-b", "board_a"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction("mixpanel_bookmark.test", plancheck.ResourceActionUpdate),
+					plancheck.ExpectUnknownValue("mixpanel_bookmark.test", tfjsonpath.New("metadata")),
+				}},
+				Check: resource.TestCheckResourceAttr("mixpanel_bookmark.test", "metadata", `{"chart_type":"line","name":"report-b"}`),
 			},
 		},
 	})
