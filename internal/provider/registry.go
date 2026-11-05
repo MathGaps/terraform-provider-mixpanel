@@ -27,6 +27,7 @@ func providerResources() []func() resource.Resource {
 		NewCustomPropertyResource,
 		NewCustomRoleResource,
 		NewDashboardResource,
+		NewDashboardContentResource,
 		NewDataGovernanceSettingsResource,
 		NewDataGroupResource,
 		NewDatasetResource,
