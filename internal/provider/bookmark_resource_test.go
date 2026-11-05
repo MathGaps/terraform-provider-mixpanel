@@ -197,3 +197,30 @@ func TestAccBookmark_serverMetadataFollowsAnUpdate(t *testing.T) {
 		},
 	})
 }
+
+// TestAccBookmark_ignoredMetadataSurvivesAnUpdate: with
+// `ignore_changes = [metadata]`, Terraform plans the prior metadata as if
+// configured; the server's rewrite on update must not fail the apply.
+func TestAccBookmark_ignoredMetadataSurvivesAnUpdate(t *testing.T) {
+	srv := newMockServer(t, mockOpts{enveloped: true, idField: "id", derive: func(obj map[string]any) {
+		meta, _ := json.Marshal(map[string]any{"name": obj["name"], "chart_type": "line"})
+		obj["metadata"] = string(meta)
+	}})
+	config := func(name string) string {
+		return strings.Replace(bookmarkBoardConfig(srv.URL, name, "board_a"),
+			"params       = ", "lifecycle {\n    ignore_changes = [metadata]\n  }\n  params       = ", 1)
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testProtoV6,
+		Steps: []resource.TestStep{
+			{Config: config("report-a")},
+			{
+				Config: config("report-b"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{PreApply: []plancheck.PlanCheck{
+					plancheck.ExpectResourceAction("mixpanel_bookmark.test", plancheck.ResourceActionUpdate),
+				}},
+				Check: resource.TestCheckResourceAttr("mixpanel_bookmark.test", "name", "report-b"),
+			},
+		},
+	})
+}
