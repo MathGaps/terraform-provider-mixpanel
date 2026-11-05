@@ -42,6 +42,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -104,6 +105,15 @@ func (r *BookmarkResource) Schema(ctx context.Context, req resource.SchemaReques
 	// API is the only consistent move.
 	requireReplace(s.Attributes, "dashboard_id")
 	stabilizeComputed(s.Attributes)
+	// The server writes metadata itself from the bookmark's name, description
+	// and params, so an update with metadata left unset must plan it as known
+	// after apply, not keep the old value (live: iac#452, 2026-11-05). A plan
+	// with no change still keeps it: the framework marks unset computed
+	// attributes unknown only when the resource changes.
+	if m, ok := s.Attributes["metadata"].(schema.StringAttribute); ok {
+		m.PlanModifiers = nil
+		s.Attributes["metadata"] = m
+	}
 	resp.Schema = s
 }
 
@@ -291,7 +301,22 @@ func (r *BookmarkResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 	r.writeBookmarkState(ctx, &resp.State, &resp.Diagnostics, client.MergeApply, req.Plan.Raw, wire, projectID, id)
+	keepPlannedMetadata(ctx, req.Plan, &resp.State, &resp.Diagnostics)
 	finishShareOnUpdate(ctx, r.client, &resp.State, &resp.Diagnostics, req.Plan.Raw, req.State.Raw, projectID, sharedEntityTypeBookmark, id)
+}
+
+// keepPlannedMetadata applies metadata as planned when the plan knew it. The
+// server rewrites metadata on every update, and a plan holds a known value only
+// when the config sets it or `ignore_changes` carries the prior one forward
+// (iac's tiles do); the next refresh reads the server's value, which
+// `ignore_changes` keeps out of the plan and a set config shows as drift.
+func keepPlannedMetadata(ctx context.Context, plan tfsdk.Plan, state *tfsdk.State, diags *diagAppender) {
+	var planned jsontypes.Normalized
+	diags.Append(plan.GetAttribute(ctx, path.Root("metadata"), &planned)...)
+	if diags.HasError() || planned.IsUnknown() {
+		return
+	}
+	diags.Append(state.SetAttribute(ctx, path.Root("metadata"), planned)...)
 }
 
 func (r *BookmarkResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
