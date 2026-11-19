@@ -4,6 +4,12 @@
 // synthetic sharing attribute (see sharing.go) is never serialized into
 // entity request bodies. "desired_state" and "decision" likewise (lifecycle
 // verb attributes, see experiment_resource.go). Re-apply if regenerating.
+//
+// HAND-EDITED EXCEPTION: "metrics" is a jsonencode attribute (JSONEncodeAttrs), a
+// list of Mixpanel's metric objects passed through as JSON, in place of the
+// generated nested list that had no `definition` (experiment_resource.go,
+// experiment_upgrade.go). "exposures_cache" and "results_cache" are output-only:
+// Mixpanel recomputes them on every write. Re-apply if regenerating.
 
 package provider
 
@@ -17,10 +23,10 @@ func ExperimentAttrSpec() client.AttrSpec {
 		IDAttr:              "id",
 		ProjectIDAttr:       "project_id",
 		PathParamAttrs:      map[string]bool{"share_with_project": true, "experiment_id": true, "desired_state": true, "decision": true},
-		JSONEncodeAttrs:     map[string]bool{"exposures_cache": true, "feature_flag": true, "results_cache": true, "settings": true},
+		JSONEncodeAttrs:     map[string]bool{"exposures_cache": true, "feature_flag": true, "metrics": true, "results_cache": true, "settings": true},
 		JSONStringAttrs:     map[string]bool{},
-		JSONEncodeWireKey:   map[string]string{"allow_staff_override": "allow_staff_override", "can_pin": "can_pin", "can_share": "can_share", "can_update_basic": "can_update_basic", "can_view": "can_view", "content_environments_id": "content_environments_id", "content_type": "content_type", "creator_email": "creator_email", "creator_id": "creator_id", "creator_name": "creator_name", "end_date": "end_date", "exposures_cache": "exposures_cache", "feature_flag": "feature_flag", "feature_flag_content_env_id": "feature_flag_content_env_id", "feature_flag_id": "feature_flag_id", "feature_flag_key": "feature_flag_key", "is_favorited": "is_favorited", "is_shared_with_project": "is_shared_with_project", "is_superadmin": "is_superadmin", "last_modified_by_email": "last_modified_by_email", "last_modified_by_id": "last_modified_by_id", "last_modified_by_name": "last_modified_by_name", "pinned_date": "pinned_date", "project_id": "project_id", "project_name": "project_name", "results_cache": "results_cache", "start_date": "start_date"},
-		OutputOnlyAttrs:     map[string]bool{"allow_staff_override": true, "can_pin": true, "can_share": true, "can_update_basic": true, "can_view": true, "content_environments_id": true, "content_type": true, "created": true, "creator_email": true, "creator_id": true, "creator_name": true, "deleted": true, "end_date": true, "feature_flag_content_env_id": true, "is_favorited": true, "is_shared_with_project": true, "is_superadmin": true, "last_modified_by_email": true, "last_modified_by_id": true, "last_modified_by_name": true, "modified": true, "pinned_date": true, "project_name": true, "start_date": true, "status": true},
+		JSONEncodeWireKey:   map[string]string{"allow_staff_override": "allow_staff_override", "can_pin": "can_pin", "can_share": "can_share", "can_update_basic": "can_update_basic", "can_view": "can_view", "content_environments_id": "content_environments_id", "content_type": "content_type", "creator_email": "creator_email", "creator_id": "creator_id", "creator_name": "creator_name", "end_date": "end_date", "exposures_cache": "exposures_cache", "feature_flag": "feature_flag", "feature_flag_content_env_id": "feature_flag_content_env_id", "feature_flag_id": "feature_flag_id", "feature_flag_key": "feature_flag_key", "is_favorited": "is_favorited", "is_shared_with_project": "is_shared_with_project", "is_superadmin": "is_superadmin", "metrics": "metrics", "last_modified_by_email": "last_modified_by_email", "last_modified_by_id": "last_modified_by_id", "last_modified_by_name": "last_modified_by_name", "pinned_date": "pinned_date", "project_id": "project_id", "project_name": "project_name", "results_cache": "results_cache", "start_date": "start_date"},
+		OutputOnlyAttrs:     map[string]bool{"allow_staff_override": true, "exposures_cache": true, "results_cache": true, "can_pin": true, "can_share": true, "can_update_basic": true, "can_view": true, "content_environments_id": true, "content_type": true, "created": true, "creator_email": true, "creator_id": true, "creator_name": true, "deleted": true, "end_date": true, "feature_flag_content_env_id": true, "is_favorited": true, "is_shared_with_project": true, "is_superadmin": true, "last_modified_by_email": true, "last_modified_by_id": true, "last_modified_by_name": true, "modified": true, "pinned_date": true, "project_name": true, "start_date": true, "status": true},
 		SpreadAttrs:         map[string]bool{},
 		CreateWritableAttrs: map[string]bool{"description": true, "feature_flag": true, "feature_flag_id": true, "feature_flag_key": true, "hypothesis": true, "metrics": true, "name": true, "settings": true, "tags": true, "variants": true},
 		UpdateWritableAttrs: map[string]bool{"description": true, "end_date": true, "exposures_cache": true, "feature_flag": true, "feature_flag_id": true, "hypothesis": true, "metrics": true, "name": true, "results_cache": true, "settings": true, "start_date": true, "status": true, "tags": true, "variants": true},

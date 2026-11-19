@@ -19,13 +19,31 @@ resource "mixpanel_experiment" "pricing_test" {
 
   desired_state = "draft"
 
-  metrics = [
+  metrics = jsonencode([
     {
-      id   = "metric_123"
-      name = "Conversion Rate"
-      type = "primary"
+      name        = "purchase"
+      type        = "primary"
+      filters     = []
+      dataGroupId = ""
+      definition = {
+        name = "Uniques of purchase"
+        type = "metric"
+        behavior = {
+          type              = "simple"
+          resourceType      = "events"
+          filtersDeterminer = "all"
+          filters           = []
+          behaviors = [{
+            type              = "event"
+            name              = "purchase"
+            filtersDeterminer = "all"
+            filters           = []
+          }]
+        }
+        measurement = { math = "unique" }
+      }
     }
-  ]
+  ])
 
   variants = [
     {
@@ -48,13 +66,7 @@ resource "mixpanel_experiment" "pricing_test_active" {
   hypothesis    = "Simplified pricing tiers will increase conversion"
   desired_state = "active"
 
-  metrics = [
-    {
-      id   = "metric_123"
-      name = "Conversion Rate"
-      type = "primary"
-    }
-  ]
+  metrics = mixpanel_experiment.pricing_test.metrics
 
   variants = [
     {
@@ -82,6 +94,30 @@ resource "mixpanel_experiment" "pricing_test_concluded" {
   })
 }
 ```
+
+## Metrics
+
+`metrics` is `jsonencode()` of a list of Mixpanel's own metric objects, sent and read back as the experiment stores them:
+
+- `type` is `primary`, `guardrail` or `secondary`.
+- `definition` is the metric's query: `behavior` names the event and its filters, `measurement.math` how it is counted (`unique`, `total`, …).
+- A filter on an event property goes in that event's `filters`, in the shape the webapp saves:
+
+```terraform
+filters = [{
+  resourceType   = "events"
+  dataset        = "$mixpanel"
+  value          = "step"
+  filterType     = "string"
+  defaultType    = "string"
+  filterOperator = "equals"
+  filterValue    = ["done"]
+}]
+```
+
+The surest way to get a metric's exact shape is to add it once in the webapp and read the experiment back (`GET /api/app/projects/{project_id}/experiments/{id}`). Leave `id` out; a metric written without one reads back without one, so plans stay clean. `exposures_cache` and `results_cache` are read-only; Mixpanel recomputes them on every write.
+
+State saved before v0.1.6, where `metrics` was a nested list, is upgraded on the first plan; the refresh reads the metrics back from Mixpanel.
 
 ## Lifecycle management (`desired_state`)
 
@@ -113,13 +149,11 @@ When `desired_state` is unset, the provider tracks the server-side state without
 - `description` (String)
 - `desired_state` (String) Lifecycle state to drive the experiment to: `draft`, `active`, `concluded`, or `archived`. A decided experiment (server status `success` or `fail`) surfaces as `concluded`; the raw value stays readable in `status`. When unset, tracks the server-side state.
 - `experiment_id` (String)
-- `exposures_cache` (String)
 - `feature_flag` (String)
 - `feature_flag_id` (String)
 - `feature_flag_key` (String)
 - `hypothesis` (String)
-- `metrics` (Attributes List) (see [below for nested schema](#nestedatt--metrics))
-- `results_cache` (String)
+- `metrics` (String) The experiment's metrics: `jsonencode([{name, type, filters, definition, dataGroupId}])`, Mixpanel's metric objects as the experiment stores them. See [Metrics](#metrics).
 - `settings` (String)
 - `share_with_project` (Boolean) Whether to share this entity with the whole project after creation. Entities created by a service account are otherwise visible only to that service account. Defaults to `true`. See the [Entity sharing guide](../guides/sharing.md).
 - `tags` (List of String)
@@ -140,6 +174,7 @@ When `desired_state` is unset, the provider tracks the server-side state without
 - `creator_name` (String)
 - `deleted` (String)
 - `end_date` (String)
+- `exposures_cache` (String) Mixpanel's exposure cache, recomputed on every write.
 - `feature_flag_content_env_id` (Number)
 - `id` (String) The ID of this resource.
 - `is_favorited` (Boolean)
@@ -152,19 +187,9 @@ When `desired_state` is unset, the provider tracks the server-side state without
 - `pinned_date` (String)
 - `project_id` (Number)
 - `project_name` (String)
+- `results_cache` (String) Mixpanel's results cache, recomputed on every write.
 - `start_date` (String)
 - `status` (String) The experiment's lifecycle status.
-
-<a id="nestedatt--metrics"></a>
-### Nested Schema for `metrics`
-
-Optional:
-
-- `data_group_id` (String)
-- `id` (String) Unique metric ID
-- `name` (String) Metric display name
-- `type` (String) Type of experiment metric.
-
 
 <a id="nestedatt--variants"></a>
 ### Nested Schema for `variants`

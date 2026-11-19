@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/hashicorp/terraform-plugin-framework-jsontypes/jsontypes"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -50,10 +51,11 @@ import (
 )
 
 var (
-	_ resource.Resource                = (*ExperimentResource)(nil)
-	_ resource.ResourceWithConfigure   = (*ExperimentResource)(nil)
-	_ resource.ResourceWithImportState = (*ExperimentResource)(nil)
-	_ resource.ResourceWithModifyPlan  = (*ExperimentResource)(nil)
+	_ resource.Resource                 = (*ExperimentResource)(nil)
+	_ resource.ResourceWithConfigure    = (*ExperimentResource)(nil)
+	_ resource.ResourceWithImportState  = (*ExperimentResource)(nil)
+	_ resource.ResourceWithModifyPlan   = (*ExperimentResource)(nil)
+	_ resource.ResourceWithUpgradeState = (*ExperimentResource)(nil)
 )
 
 // keep the generated schema package and schema builder imported.
@@ -88,9 +90,7 @@ func (r *ExperimentResource) Metadata(ctx context.Context, req resource.Metadata
 
 func (r *ExperimentResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	s := rsc.ExperimentResourceSchema(ctx)
-	s.Attributes["exposures_cache"] = schema.StringAttribute{Optional: true, Computed: true}
 	s.Attributes["feature_flag"] = schema.StringAttribute{Optional: true, Computed: true}
-	s.Attributes["results_cache"] = schema.StringAttribute{Optional: true, Computed: true}
 	s.Attributes["settings"] = schema.StringAttribute{Optional: true, Computed: true}
 	s.Attributes["desired_state"] = schema.StringAttribute{
 		Optional: true,
@@ -115,9 +115,27 @@ func (r *ExperimentResource) Schema(ctx context.Context, req resource.SchemaRequ
 			"`mode` = `ship_variant`. When unset, concluding uses force_conclude (no decision " +
 			"recorded). Changing it while `desired_state` is `concluded` re-issues the decide call.",
 	}
+	// Metrics as Mixpanel stores them (HAND-EDITED EXCEPTION in experiment_spec.go): the
+	// generated nested list held only id/name/type/data_group_id, so a metric's event,
+	// filters and measurement (its `definition`) could not be written.
+	s.Attributes["metrics"] = schema.StringAttribute{
+		Optional: true,
+		Computed: true,
+		MarkdownDescription: "The experiment's metrics: `jsonencode([{id, name, type, filters, definition, " +
+			"dataGroupId}])`, Mixpanel's metric objects as the experiment stores them. `type` is `primary`, " +
+			"`guardrail` or `secondary`; `definition` is the metric's query (`behavior`, `measurement`).",
+	}
+	// Version 1: `metrics` became a jsonencode string (v0.1.6); see UpgradeState.
+	s.Version = 1
 	s.Attributes[shareAttrName] = shareWithProjectAttribute()
-	normalizedJSON(s.Attributes, "exposures_cache", "feature_flag", "results_cache", "settings")
+	normalizedJSON(s.Attributes, "feature_flag", "metrics", "settings")
 	stabilizeComputed(s.Attributes)
+	// The caches are Mixpanel's own: it stamps `$last_computed` on every write, so a
+	// value carried over from state is wrong after any update ("inconsistent result
+	// after apply"). Read-only and unknown on change, after stabilizeComputed.
+	for _, n := range []string{"exposures_cache", "results_cache"} {
+		s.Attributes[n] = schema.StringAttribute{Computed: true, CustomType: jsontypes.NormalizedType{}}
+	}
 	resp.Schema = s
 }
 

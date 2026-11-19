@@ -9,6 +9,8 @@
 package provider
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -152,6 +154,76 @@ resource "mixpanel_experiment" "test" {
 				ImportStateVerifyIdentifierAttribute: "id",
 				ImportStateIdFunc:                    importIDFunc("mixpanel_experiment.test", "id", "project_id"),
 				ImportStateVerifyIgnore:              []string{"allow_staff_override", "can_pin", "can_share", "can_update_basic", "can_view", "content_environments_id", "content_type", "created", "creator_email", "creator_id", "creator_name", "decision", "deleted", "end_date", "exposures_cache", "feature_flag", "feature_flag_content_env_id", "is_favorited", "is_shared_with_project", "is_superadmin", "last_modified_by_email", "last_modified_by_id", "last_modified_by_name", "modified", "pinned_date", "project_name", "results_cache", "settings", "start_date", "status"},
+			},
+		},
+	})
+}
+
+// A metric is Mixpanel's own object, `definition` and all, sent as written and
+// read back without drift (the generated nested list had no `definition`).
+func TestAccExperiment_metricsJSON(t *testing.T) {
+	srv := newMockServer(t, mockOpts{
+		enveloped: true, idField: "id", stringID: true, resultsMap: false, upsert: false, listCreate: false,
+		createDefaults: map[string]any{"status": "draft"},
+	})
+	cfg := func(math string) string {
+		return providerConfig(srv.URL, `
+resource "mixpanel_experiment" "test" {
+  name = "tf-acc-metrics"
+  metrics = jsonencode([
+    {
+      id   = "onboarding-done"
+      name = "onboarding_step"
+      type = "guardrail"
+      filters = []
+      dataGroupId = ""
+      definition = {
+        name = "Uniques of onboarding_step"
+        type = "metric"
+        behavior = {
+          type = "simple"
+          resourceType = "events"
+          filtersDeterminer = "all"
+          filters = []
+          behaviors = [{
+            type = "event"
+            name = "onboarding_step"
+            filtersDeterminer = "all"
+            filters = [{
+              resourceType = "events", dataset = "$mixpanel", value = "step",
+              filterType = "string", defaultType = "string",
+              filterOperator = "equals", filterValue = ["done"]
+            }]
+          }]
+        }
+        measurement = { math = "`+math+`" }
+      }
+    }
+  ])
+}`)
+	}
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testProtoV6,
+		Steps: []resource.TestStep{
+			{
+				Config: cfg("unique"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttrWith("mixpanel_experiment.test", "metrics", func(v string) error {
+						if !strings.Contains(v, `"filterValue":["done"]`) || !strings.Contains(v, `"type":"guardrail"`) {
+							return fmt.Errorf("metrics = %s, want the guardrail with its step filter", v)
+						}
+						return nil
+					}),
+				),
+			},
+			{
+				// A changed measurement must plan as an in-place update.
+				Config: cfg("total"),
+				ConfigPlanChecks: resource.ConfigPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectResourceAction("mixpanel_experiment.test", plancheck.ResourceActionUpdate),
+					},
+				},
 			},
 		},
 	})

@@ -68,7 +68,7 @@ For the corresponding resource to manage experiments, see [mixpanel_experiment](
 - `last_modified_by_email` (String)
 - `last_modified_by_id` (Number)
 - `last_modified_by_name` (String)
-- `metrics` (Attributes List) (see [below for nested schema](#nestedatt--metrics))
+- `metrics` (String) jsonencode() of the experiment's metric objects, as `mixpanel_experiment` has them.
 - `modified` (String)
 - `name` (String)
 - `pinned_date` (String)
@@ -77,17 +77,6 @@ For the corresponding resource to manage experiments, see [mixpanel_experiment](
 - `status` (String) The experiment's lifecycle status.
 - `tags` (List of String)
 - `variants` (Attributes List) (see [below for nested schema](#nestedatt--variants))
-
-<a id="nestedatt--metrics"></a>
-### Nested Schema for `metrics`
-
-Read-Only:
-
-- `data_group_id` (String)
-- `id` (String) Unique metric ID
-- `name` (String) Metric display name
-- `type` (String) Type of experiment metric.
-
 
 <a id="nestedatt--variants"></a>
 ### Nested Schema for `variants`
