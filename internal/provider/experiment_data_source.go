@@ -43,6 +43,8 @@ func (d *ExperimentDataSource) Schema(ctx context.Context, req datasource.Schema
 	s.Attributes["feature_flag"] = dschema.StringAttribute{Optional: true, Computed: true}
 	s.Attributes["results_cache"] = dschema.StringAttribute{Optional: true, Computed: true}
 	s.Attributes["settings"] = dschema.StringAttribute{Optional: true, Computed: true}
+	// Metrics as JSON, as the resource has them (experiment_spec.go, HAND-EDITED EXCEPTION).
+	s.Attributes["metrics"] = dschema.StringAttribute{Computed: true}
 	resp.Schema = s
 }
 
